@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Погода</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#121212">
+
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+        }
+        
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 12px 15px;
+            border-radius: 12px;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            outline: none;
+            font-size: 16px;
+        }
+
+        .search-bar input::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .icon-btn {
+            padding: 12px;
+            border-radius: 12px;
+            border: none;
+            background: rgba(255,255,255,0.3);
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+
+        .icon-btn:active {
+            background: rgba(255,255,255,0.4);
+        }
+
+        .current-weather {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .city-name {
+            font-size: 1.5em;
+            font-weight: 500;
+        }
+
+        .temp {
+            font-size: 4.5em;
+            font-weight: bold;
+            margin: 10px 0;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .condition {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .toggle-btn {
+            width: 100%;
+            padding: 15px;
+            border-radius: 15px;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .toggle-btn:active {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .section-title {
+            margin: 0 0 15px 0;
+            font-size: 1.1em;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+
+        /* Почасовой прогноз с горизонтальным скроллом */
+        .hourly-scroll {
+            display: flex;
+            overflow-x: auto;
+            gap: 12px;
+            padding-bottom: 10px;
+            scrollbar-width: none; /* Скрытие ползунка в Firefox */
+        }
+        
+        .hourly-scroll::-webkit-scrollbar {
+            display: none; /* Скрытие ползунка в Chrome/Safari */
+        }
+
+        .hourly-card {
+            flex-shrink: 0; /* Предотвращает перенос карточек на новую строку */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(255,255,255,0.1);
+            padding: 15px 10px;
+            border-radius: 15px;
+            min-width: 65px;
+            gap: 8px;
+        }
+
+        /* Прогноз на 7 дней */
+        .daily-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .daily-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 12px;
+        }
+        
+        .daily-day { flex: 1; }
+        .daily-icon { flex: 1; text-align: center; }
+        .daily-temp { flex: 1; text-align: right; font-weight: 500; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Главный экран: Поиск и Текущая погода -->
+        <div class="glass-panel">
+            <div class="search-bar">
+                <input type="text" id="cityInput" placeholder="Введите город...">
+                <button class="icon-btn" onclick="searchCity()">🔍</button>
+                <button class="icon-btn" onclick="getWeatherByGPS()">📍</button>
+            </div>
+            
+            <div class="current-weather">
+                <div class="city-name" id="cityName">Определение локации...</div>
+                <div class="temp" id="currentTemp">--°</div>
+                <div class="condition" id="currentCondition">Ожидание данных</div>
+            </div>
+        </div>
+
+        <!-- Кнопка раскрытия/сокрытия подробностей -->
+        <button class="toggle-btn" id="toggleBtn" onclick="toggleDetails()">Посмотреть подробно</button>
+
+        <!-- Скрытый блок с подробной статистикой -->
+        <div id="detailsSection" class="hidden container">
+            
+            <!-- Почасовой прогноз -->
+            <div class="glass-panel">
+                <h3 class="section-title">Сегодня</h3>
+                <div class="hourly-scroll" id="hourlyForecast">
+                    <!-- Будет заполнено через JavaScript -->
+                </div>
+            </div>
+
+            <!-- Прогноз на 7 дней -->
+            <div class="glass-panel">
+                <h3 class="section-title">На 7 дней</h3>
+                <div class="daily-list" id="dailyForecast">
+                    <!-- Будет заполнено через JavaScript -->
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        // Логика переключения видимости подробного прогноза
+        let isDetailsVisible = false;
+        
+        function toggleDetails() {
+            const section = document.getElementById('detailsSection');
+            const btn = document.getElementById('toggleBtn');
+            isDetailsVisible = !isDetailsVisible;
+            
+            if (isDetailsVisible) {
+                section.classList.remove('hidden');
+                btn.textContent = 'Скрыть подробности';
+            } else {
+                section.classList.add('hidden');
+                btn.textContent = 'Посмотреть подробно';
+            }
+        }
+
+        // Основная функция загрузки погоды
+        async function fetchWeather(lat, lon, name) {
+            document.getElementById('cityName').textContent = name;
+            try {
+                // Запрос к Open-Meteo API
+                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}¤t=temperature_2m,weather_code&hourly=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`);
+                const data = await res.json();
+                
+                // Обновление текущей погоды
+                document.getElementById('currentTemp').textContent = Math.round(data.current.temperature_2m) + '°';
+                document.getElementById('currentCondition').textContent = getWeatherDescription(data.current.weather_code);
+                
+                renderHourly(data.hourly);
+                renderDaily(data.daily);
+            } catch (e) {
+                console.error("Ошибка загрузки погоды:", e);
+                document.getElementById('currentCondition').textContent = "Ошибка сети";
+            }
+        }
+
+        // Поиск города через Geocoding API
+        async function searchCity() {
+            const query = document.getElementById('cityInput').value;
+            if(!query) return;
+            
+            document.getElementById('cityName').textContent = "Поиск...";
+            try {
+                const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${query}&count=1&language=ru&format=json`);
+                const data = await res.json();
+                
+                if(data.results && data.results.length > 0) {
+                    const city = data.results[0];
+                    fetchWeather(city.latitude, city.longitude, city.name);
+                } else {
+                    document.getElementById('cityName').textContent = "Город не найден";
+                }
+            } catch (e) {
+                console.error("Ошибка поиска:", e);
+            }
+        }
+
+        // Получение геолокации по GPS
+        function getWeatherByGPS() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    fetchWeather(position.coords.latitude, position.coords.longitude, "Ваша локация");
+                }, () => {
+                    document.getElementById('cityName').textContent = "Доступ к GPS запрещен";
+                });
+            } else {
+                document.getElementById('cityName').textContent = "GPS не поддерживается";
+            }
+        }
+
+        // Отрисовка почасового прогноза (на 24 часа вперед)
+        function renderHourly(hourlyData) {
+            const container = document.getElementById('hourlyForecast');
+            container.innerHTML = '';
+            
+            // Вычисляем текущий час в данных (упрощенно)
+            const currentHour = new Date().getHours();
+            
+            for(let i = currentHour; i < currentHour + 24; i++) {
+                if(!hourlyData.time[i]) break;
+                
+                const time = new Date(hourlyData.time[i]).toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'});
+                const temp = Math.round(hourlyData.temperature_2m[i]) + '°';
+                const code = hourlyData.weather_code[i];
+                
+                container.innerHTML += `
+                    <div class="hourly-card">
+                        <span>${time}</span>
+                        <span style="font-size: 1.2em">${getWeatherEmoji(code)}</span>
+                        <span>${temp}</span>
+                    </div>
+                `;
+            }
+        }
+
+        // Отрисовка прогноза на 7 дней
+        function renderDaily(dailyData) {
+            const container = document.getElementById('dailyForecast');
+            container.innerHTML = '';
+            
+            for(let i = 0; i < 7; i++) {
+                const date = new Date(dailyData.time[i]).toLocaleDateString('ru-RU', {weekday: 'short', day: 'numeric'});
+                const max = Math.round(dailyData.temperature_2m_max[i]);
+                const min = Math.round(dailyData.temperature_2m_min[i]);
+                const code = dailyData.weather_code[i];
+                
+                container.innerHTML += `
+                    <div class="daily-row">
+                        <span class="daily-day">${date}</span>
+                        <span class="daily-icon">${getWeatherEmoji(code)}</span>
+                        <span class="daily-temp">${max}° / ${min}°</span>
+                    </div>
+                `;
+            }
+        }
+
+        // Расшифровка кодов погоды (WMO Weather interpretation codes)
+        function getWeatherDescription(code) {
+            const codes = {
+                0: "Ясно", 1: "В основном ясно", 2: "Переменная облачность", 3: "Пасмурно",
+                45: "Туман", 48: "Иней", 51: "Легкая морось", 53: "Морось", 55: "Сильная морось",
+                61: "Слабый дождь", 63: "Дождь", 65: "Сильный дождь", 71: "Слабый снег",
+                73: "Снег", 75: "Снегопад", 95: "Гроза", 96: "Гроза с градом", 99: "Сильная гроза"
+            };
+            return codes[code] || "Неизвестно";
+        }
+
+        // Эмодзи для иконок погоды
+        function getWeatherEmoji(code) {
+            if(code === 0 || code === 1) return "☀️";
+            if(code === 2) return "⛅";
+            if(code === 3) return "☁️";
+            if(code >= 45 && code <= 48) return "🌫️";
+            if(code >= 51 && code <= 65) return "🌧️";
+            if(code >= 71 && code <= 75) return "❄️";
+            if(code >= 95 && code <= 99) return "⛈️";
+            return "🌡️";
+        }
+
+        // Регистрация Service Worker для PWA установки на главный экран
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker успешно зарегистрирован', reg))
+                    .catch(err => console.error('Ошибка регистрации Service Worker', err));
+            });
+        }
+
+        // Инициализация при загрузке: запрос погоды по координатам
+        getWeatherByGPS();
+    </script>
+</body>
+</html>
